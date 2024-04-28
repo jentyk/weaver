@@ -1,0 +1,55 @@
+services:
+  mongo:
+    image: mongo
+    restart: always
+    env_file:
+      - .env
+      - .env.compose
+    ports:
+      - 27017
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+      - ./employees.csv:/tmp/employees.csv:ro
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    env_file:
+      - .env
+      - .env.compose
+    depends_on:
+      - mongo
+
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - 6379
+
+  celery:
+    build:
+      dockerfile: Dockerfile
+    healthcheck:
+      test: HEALTHCHECK CMD celery inspect ping -A tasks.add -d celery@$HOSTNAME
+    restart: always
+    env_file:
+      - .env
+      - .env.compose
+    entrypoint: ["celery", "-A", "flaskr.tasks", "worker", "--loglevel=DEBUG"]
+    depends_on:
+      - redis
+      - mongo
+
+  server:
+    build:
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8080:8080
+    env_file:
+      - .env
+      - .env.compose
+    depends_on:
+      - celery
